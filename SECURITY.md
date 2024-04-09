@@ -53,3 +53,11 @@ Your cooperation in maintaining a secure project environment is appreciated.
 ## Last Revised: 10.04.2024
 
 ## For inquiries, reach out to poliakov.vladislav.v@gmail.com  
+
+## Other contact information:
+
+E-mail: poliakov.vladislav.v@gmail.com
+Telegram: https://t.me/ParrKenna | @ParrKenna | Search by phone opened
+Linkedin: https://www.linkedin.com/in/владислав-поляков-691b28298/
+Djinni: https://djinni.co/q/dbfdf0f6b8/
+Viber by phone +380508517906
