@@ -1,4 +1,4 @@
-##Contributing Guidelines
+##Contributing Guidelines##
 Thank you for considering contributing to WWSERVICEaug8a! Your contributions are greatly appreciated. Here's how you can get started:
 
 ##Reporting Issues
