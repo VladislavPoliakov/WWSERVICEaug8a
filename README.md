@@ -1,4 +1,4 @@
-Made by V.V.Poliakov (ParrKenna) for WWSERVICE. 
+Made by V.V.Poliakov for WWSERVICE. 
 Some questionable moments in this code:
 
     1. Why so many global variables, and none local?
