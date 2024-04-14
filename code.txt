@@ -1,4 +1,4 @@
- /*
+  /*
   Made by V.V.Poliakov (ParrKenna) for WWSERVICE. 
 
   Comments are for following code, that goes after it:
@@ -274,8 +274,6 @@ void settingsMenuExit(){
   isSettingsMenuActive=0;
   menuWorkMode = STOPMODE;
       isAUTOactive=false;
-
-
 }
 
 //Getting settings from EEPROM to RAM. 
@@ -456,7 +454,7 @@ bool istouchedEXIT_BUTTONPreventor=false;
 
 //Function for settings menu, first level - user can choose which setting will be changed.
 
-void settingsMapFunc(String print1, String print2, unsigned short int up, unsigned short int down, unsigned short int CCSID, unsigned short int setChoise, unsigned short int extdestiantionfromlayer2, unsigned short int setlayer2){
+void settingsMapFunc(const String& print1, const String& print2, unsigned short int up, unsigned short int down, unsigned short int CCSID, unsigned short int setChoise, unsigned short int extdestiantionfromlayer2, unsigned short int setlayer2){
   
   //Printing current setting in list
 
@@ -567,7 +565,7 @@ void settingsMapFunc(String print1, String print2, unsigned short int up, unsign
 
 //Function for concrete setting change menu, of parameter that is saved as integer. 
 
-void concreteSettingsMapFuncInt(int changescale, String printUpperRow, String measurementUnits, int upperBound, int lowerBound, int EEPROMADRESS){
+void concreteSettingsMapFuncInt(int changescale, const String& printUpperRow, const String& measurementUnits, int upperBound, int lowerBound, int EEPROMADRESS){
 
   //Print concrete setting information. 
   updateIfNeeded();
@@ -646,7 +644,7 @@ void concreteSettingsMapFuncInt(int changescale, String printUpperRow, String me
 
 //Same fuction, but with float. Used uneffective method, explaining in the bottom of code.
 
-void concreteSettingsMapFuncFloat(float changescale, String printUpperRow, String measurementUnits, float upperBound, float lowerBound, int EEPROMADRESS){
+void concreteSettingsMapFuncFloat(float changescale, const String& printUpperRow, const String& measurementUnits, float upperBound, float lowerBound, int EEPROMADRESS){
   updateIfNeeded();
   lcd.setCursor(0, 0);
   lcd.print(printUpperRow);
