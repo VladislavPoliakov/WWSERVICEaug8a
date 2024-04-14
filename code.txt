@@ -1190,6 +1190,6 @@ If timer not set, it will be set on pressing SET button.
     Linkedin: https://www.linkedin.com/in/владислав-поляков-691b28298/
     Djinni: https://djinni.co/q/dbfdf0f6b8/
     Viber by phone +380508517906
-    
+    Github: https://github.com/VladislavPoliakov/WWSERVICEaug8a
 
 */
