@@ -1,4 +1,8 @@
-Made by V.V.Poliakov for WWSERVICE. 
+## Made by V.V.Poliakov for WWSERVICE. 
+
+## Code is in ../code.txt and ../src/main.cpp
+
+## Used PlatformIO ( https://platformio.org , https://github.com/platformio )
 Some questionable moments in this code:
 
     1. Why so many global variables, and none local?
