@@ -1,28 +1,18 @@
-  /*
-  Made by V.V.Poliakov (ParrKenna) for WWSERVICE. 
-
-  Comments are for following code, that goes after it:
-
-  //COMMENT 
-      |
-      V
-  code();
-  
-  Some questionable moments and my contacts are listed and explained in the end of this code/document.
+/*
+Made by V.V.Poliakov (ParrKenna) for WWSERVICE.
+Comments are for following code, that goes after it:
+//COMMENT
+    |
+    V
+code();
+Some questionable moments and my contacts are listed and explained in the end of this code/document.
 */
-
-//Libraries.
-
+// Libraries.
 #include <Arduino.h>
-
 #include <PZEM004Tv30.h>
-
 #include <LiquidCrystal.h>
-
 #include <Wire.h>
-
 #include <EEPROM.h>
-
 /*
  Buttons ID's for analog keyboard.
  Same codes means the same button
@@ -35,52 +25,40 @@
 #define MINUS_BUTTON 2
 #define EXIT_BUTTON 3
 #define SET_BUTTON 4
-
 // Buttons on the shield.
-
 #define BUTTON_RIGHT 0
 #define BUTTON_UP 1
 #define BUTTON_DOWN 2
 #define BUTTON_LEFT 3
 #define BUTTON_SELECT 4
-#define ANYBUTTON 5
-
+#define ANY_BUTTON  5
 // Pins on shield.
-
-#define RELAYPIN 2
-#define SUPPLYCONTROLPIN 3
-#define KEYBOARDPIN A0
-
+#define RELAY_PIN 2
+#define SUPPLY_CONTROL_PIN 3
+#define KEYBOARD_PIN A0
 // Work modes.
-
-#define STOPMODE 1
-#define AUTOMODE 2
-#define MANUALMODE 3
-
+#define STOP_MODE 1
+#define AUTO_MODE 2
+#define MANUAL_MODE 3
 /*
  DEFAULT values of settings.
  Used ONLY for debug,
  setting to default and
  setting up new device.
 */
-
-#define amperageMAXDEFAULT 7.95
-#define amperageMINDEFAULT 3.95
-#define voltageMAXDEFAULT 245
-#define voltageMINDEFAULT 195
-#define wattageMultiplierDEFAULT 0.9
-
+#define AMPERAGE_MAXIMUM_DEFAULT 7.95
+#define AMPERAGE_MINIMUM_DEFAULT 3.95
+#define VOLTAGE_MAXIMUM_DEFAULT 245
+#define VOLTAGE_MINIMUM_DEFAULT 195
+#define WATTAGE_MULTIPLIER_DEFAULT 0.9
 // Error codes.
-
-#define err_not_stopped 1
-#define err_amperage_high 2
-#define err_amperage_low 3
-#define err_voltage_low 4
-#define err_voltage_high 5
-
+#define ERROR_NOT_STOPPED 1
+#define ERROR_AMPERAGE_TOO_HIGH 2
+#define ERROR_AMPERAGE_TOO_LOW 3
+#define ERROR_VOLTAGE_TOO_LOW 4
+#define ERROR_VOLTAGE_TOO_HIGH 5
 // Custom symbols for the LCD
-
-byte lockerSymbol[8]{
+byte g_locker_symbol[8]{
     0b00100,
     0b01010,
     0b01010,
@@ -90,8 +68,7 @@ byte lockerSymbol[8]{
     0b11011,
     0b01110,
 };
-
-byte turningOnModeSymbol[8]{
+byte g_turning_on_mode_symbol[8]{
     0b00000,
     0b00000,
     0b00100,
@@ -101,75 +78,61 @@ byte turningOnModeSymbol[8]{
     0b01110,
     0b00000,
 };
-
 // Inititalizing of LCD and PZEM-004t
-
 LiquidCrystal lcd(8, 9, 4, 5, 6, 7);
-
 PZEM004Tv30 pzem(Serial);
-
 // Comparizing with current signal of Supply control pin.
-
-unsigned short int supplyTurningOn = 1;
-
+short int supply_turning_on = 1;
 // Locks&clocks for starting and stopping
-bool isLockedForTurningOn;
-bool isLockedForShuttingDown;
-int lockTimerTurningOnINT;
-int lockTimerShuttingDownINT;
-uint32_t turningOnLockTimer;
-uint32_t shuttingDownLockTimer;
-
+bool g_is_locked_for_turning_on;
+bool g_is_locked_for_shutting_down;
+unsigned int g_lock_turning_on_delay;
+unsigned int g_lock_shutting_down_delay;
+uint32_t g_turning_on_lock_timer;
+uint32_t g_shutting_down_lock_timer;
 /*
  Function used when error occured.
- Locking turning on, for the milliseconds that is defined by setTimer variable.
+ Locking turning on, for the milliseconds that is defined by fv_set_timer variable.
 */
-
-void lockTurningOn(int setTimer)
+void f_lock_turning_on(int fv_set_timer)
 {
   // Lock.
-  isLockedForTurningOn = true;
+  g_is_locked_for_turning_on = true;
   // Count current time.
-  turningOnLockTimer = millis();
+  g_turning_on_lock_timer = millis();
   // Setting or updating current delay.
-  lockTimerTurningOnINT = setTimer;
+  g_lock_turning_on_delay = fv_set_timer;
 }
-
 /*
  Function used when the AUTO or MANUAL mode is only started.
- Locking turning on, for the milliseconds that is defined by setTimer variable.
+ Locking turning on, for the milliseconds that is defined by fv_set_timer variable.
  Locking shutting down by the error catcher.
  User can shut down device manually, it can't be locked.
 */
-
-void lockShuttingDown(int setTimer)
+void f_lock_shutting_down(int fv_set_timer)
 {
   // Locking.
-  isLockedForShuttingDown = true;
+  g_is_locked_for_shutting_down = true;
   // Count current time.
-  shuttingDownLockTimer = millis();
+  g_shutting_down_lock_timer = millis();
   // Setting or updating current delay.
-  lockTimerShuttingDownINT = setTimer;
+  g_lock_shutting_down_delay = fv_set_timer;
 }
-
 /*Function that is used to get the current state of concrete or any button.
 Transforms analog signal of keyboard to digital state (0 or 1) of buttons.
-
 1 is not touched.
 0 is touched.
-
  */
-
-bool getButtonState(int button)
+bool f_get_button_state(int fv_button)
 {
   // Check for button ID.
-  if (button == ANYBUTTON)
+  if (fv_button == ANY_BUTTON )
   {
     /*
      If button ID is 5(Any button is needed to be touched),
      check the current keyboard signal. If ANY button touched,
      it could be less than 1000.*/
-    if (analogRead(KEYBOARDPIN) > 1000)
+    if (analogRead(KEYBOARD_PIN) > 1000)
     {
       return 1;
     }
@@ -181,36 +144,36 @@ bool getButtonState(int button)
   else
   {
     // If button id is concrete, creating variable that will save ID of tuched button.
-    int realpressedbutton;
+    int l_real_pressed_button;
     // Getting signal of keyboard.
-    int keyboardsignal = analogRead(KEYBOARDPIN);
+    int l_keyboard_signal = analogRead(KEYBOARD_PIN);
     // Comparising the signal with buttons signal area map. The current is for D1ROBOT
-    if (keyboardsignal < 50)
+    if (l_keyboard_signal < 50)
     {
-      realpressedbutton = BUTTON_RIGHT;
+      l_real_pressed_button = BUTTON_RIGHT;
     }
-    else if (keyboardsignal < 250)
+    else if (l_keyboard_signal < 250)
     {
-      realpressedbutton = BUTTON_UP;
+      l_real_pressed_button = BUTTON_UP;
     }
-    else if (keyboardsignal < 450)
+    else if (l_keyboard_signal < 450)
     {
-      realpressedbutton = BUTTON_DOWN;
+      l_real_pressed_button = BUTTON_DOWN;
     }
-    else if (keyboardsignal < 650)
+    else if (l_keyboard_signal < 650)
     {
-      realpressedbutton = BUTTON_LEFT;
+      l_real_pressed_button = BUTTON_LEFT;
     }
-    else if (keyboardsignal < 850)
+    else if (l_keyboard_signal < 850)
     {
-      realpressedbutton = BUTTON_SELECT;
+      l_real_pressed_button = BUTTON_SELECT;
     }
     else
     {
       return 1;
     }
     // Check for the according currently pressed button and button, that is checking for be touched.
-    if (button == realpressedbutton)
+    if (fv_button == l_real_pressed_button)
     {
       return 0;
     }
@@ -220,119 +183,94 @@ bool getButtonState(int button)
     }
   }
 }
-
 // Variables for saving the current and previous(postfix "prev") values got from PZEM-004t
-
-int voltageINTERIOR = 000;
-float amperageINTERIOR = 0.00;
-float wattageINTERIOR = 0.00;
-int voltageINTERIORprev = 000;
-float amperageINTERIORprev = 0.00;
-float wattageINTERIORprev = 0.00;
-
+int g_voltage_current_value = 000;
+float g_amperage_current_value = 0.00;
+float g_wattage_current_value = 0.00;
+int g_voltage_previous_value = 000;
+float g_amperage_previous_value = 0.00;
+float g_wattage_previous_value = 0.00;
 // Variable to save the currently active work mode. Work modes IDs defined at line 54.
-
-short int menuWorkMode = STOPMODE;
-
+short int g_menu_and_work_mode= STOP_MODE;
 // Function that saving current mode to EEPROM. Saves only STOP or AUTO modes.
-
-void writeCurrentToEEPROM(bool toWrite)
+void f_write_work_mode_to_EEPROM(bool fv_mode_to_write)
 {
-  EEPROM.put(50, toWrite);
+  EEPROM.put(50, fv_mode_to_write);
 }
-
 // Getting mode to start from EEPROM.
-bool checkForCurrentSetupMODE()
+bool f_check_current_mode_for_setup()
 {
-  bool whattoreturn;
-  EEPROM.get(50, whattoreturn);
-  return whattoreturn;
+  bool l_what_to_return;
+  EEPROM.get(50, l_what_to_return);
+  return l_what_to_return;
 }
-
 // Variables to control the settings menu. 0 NO 1 YES.
-
-// Settings menu status.
-bool isSettingsMenuActive = false;
+//Settings menu status.
+bool g_is_settings_menu_active = false;
 // Variable used to save current settings menu page opened.
-int settingmap;
+int g_setting_map_current_position;
 // Variable used to keep opened or closed concrete setting page.
-bool isConcreteSettingChoosed = false;
-/* Variable used analogically to settingmap,
+bool g_is_concrete_setting_chosen = false;
+/* Variable used analogically to g_setting_map_current_position,
 but only for settings that have concrete page.*/
-unsigned int choosedConcreteSettingID;
-
+unsigned int g_chosen_concrete_setting_ID;
 // Current settings. Used to catch errors.
-
-float amperageMAX;
-float amperageMIN;
-int voltageMAX;
-int voltageMIN;
-float wattageMultiplier;
-
+float g_amperage_maximum;
+float g_amperage_minimum;
+int g_voltage_maximum;
+int g_voltage_minimum;
+float g_wattage_multiplier;
 // Temporary values for settings, to change them.
-
-float floatTEMPORARYSetting;
-int intTEMPORARYSetting;
-
+float g_temporary_setting_float;
+int g_temporary_setting_int;
 // Variables used in error catch system.
-
-uint32_t errorOutputDisableTimer;
-bool isErrorActive = false;
-unsigned int savedErrorCode;
-int savedMsToDisable;
-
+uint32_t g_error_output_disable_timer;
+bool g_is_error_active = false;
+unsigned int g_saved_error_code;
+unsigned int g_saved_disable_delay;
 // Variable for screen updater. Used to check if update screen is needed.
-
-bool isNeededUpdate = 1;
-
+bool is_update_needed = 1;
 // Screen updater. Checks if needed to clear it, and does it if yes.
-void updateIfNeeded()
+void f_update_if_needed()
 {
-  if (isNeededUpdate)
+  if (is_update_needed)
   {
     lcd.clear();
-    isNeededUpdate = false;
+    is_update_needed = false;
   }
 }
-
 // Exit from setting menu and clearing after.
-
-bool isAUTOactive = false;
-
-void settingsMenuExit()
+bool g_is_auto_mode_active = false;
+void f_exit_from_settings_menu()
 {
-  isNeededUpdate = true;
-  isSettingsMenuActive = 0;
-  menuWorkMode = STOPMODE;
-  isAUTOactive = false;
+  is_update_needed = true;
+  g_is_settings_menu_active = 0;
+  g_menu_and_work_mode= STOP_MODE;
+  g_is_auto_mode_active = false;
 }
-
 // Getting settings from EEPROM to RAM.
-
-void getSettingsFromEEPROM()
+void f_get_settings_from_EEPROM()
 {
-  EEPROM.get(0, amperageMAX);
-  EEPROM.get(5, amperageMIN);
-  EEPROM.get(10, voltageMAX);
-  EEPROM.get(15, voltageMIN);
-  EEPROM.get(20, wattageMultiplier);
+  EEPROM.get(0, g_amperage_maximum);
+  EEPROM.get(5, g_amperage_minimum);
+  EEPROM.get(10, g_voltage_maximum);
+  EEPROM.get(15, g_voltage_minimum);
+  EEPROM.get(20, g_wattage_multiplier);
 }
-
 // Setting to default. Default setting on line 60. Accompanied with visual effects.
-
-void setDefaultSettingsToEEPROM()
+void f_set_to_default_settings_to_EEPROM()
 {
-  isNeededUpdate = true;
-  updateIfNeeded();
+  is_update_needed = true;
+  f_update_if_needed();
   lcd.setCursor(0, 0);
   lcd.print("SETTING TO");
   lcd.setCursor(0, 1);
   lcd.print("DEFAULT");
-  EEPROM.put(0, amperageMAXDEFAULT);
-  EEPROM.put(5, amperageMINDEFAULT);
-  EEPROM.put(10, voltageMAXDEFAULT);
-  EEPROM.put(15, voltageMINDEFAULT);
-  EEPROM.put(20, wattageMultiplierDEFAULT);
+  EEPROM.put(0, AMPERAGE_MAXIMUM_DEFAULT);
+  EEPROM.put(5, AMPERAGE_MINIMUM_DEFAULT);
+  EEPROM.put(10, VOLTAGE_MAXIMUM_DEFAULT);
+  EEPROM.put(15, VOLTAGE_MINIMUM_DEFAULT);
+  EEPROM.put(20, WATTAGE_MULTIPLIER_DEFAULT);
   delay(100);
   lcd.print(" .");
   delay(250);
@@ -340,37 +278,35 @@ void setDefaultSettingsToEEPROM()
   delay(250);
   lcd.print(" .");
   delay(500);
-  isNeededUpdate = true;
-  updateIfNeeded();
+  is_update_needed = true;
+  f_update_if_needed();
   lcd.setCursor(0, 0);
   lcd.print("DONE");
   delay(3000);
 }
-
 // Visual part and activity setter of Error catching module. Compares Error codes and updates screen.
-
-void errorOnlyOutput(unsigned int errorCode, int msToDisable)
+void f_error_only_output(unsigned int fv_error_code, int fv_disable_delay)
 {
-  savedErrorCode = errorCode;
-  savedMsToDisable = msToDisable;
+  g_saved_error_code = fv_error_code;
+  g_saved_disable_delay = fv_disable_delay;
   // Activity setter.
-  if (isErrorActive == false)
+  if (g_is_error_active == false)
   {
-    errorOutputDisableTimer = millis();
-    isErrorActive = true;
+    g_error_output_disable_timer = millis();
+    g_is_error_active = true;
   }
-  updateIfNeeded();
+  f_update_if_needed();
   lcd.setCursor(0, 0);
   // Following part is used in every error except "not stopped", on top line of LCD.
-  if (errorCode != 1)
+  if (fv_error_code!= 1)
   {
     lcd.print("ERROR");
   }
   // Prints current error description on bottom line of LCD, except first.
   lcd.setCursor(0, 1);
-  switch (errorCode)
+  switch (fv_error_code)
   {
-  case err_not_stopped:
+  case ERROR_NOT_STOPPED:
   {
     // Prints "NOT STOPPED" on top line of LCD.
     lcd.clear();
@@ -379,94 +315,84 @@ void errorOnlyOutput(unsigned int errorCode, int msToDisable)
     break;
   }
     // Any other prints "ERROR" in top line and current error on bottom line.
-  case err_amperage_high:
+  case ERROR_AMPERAGE_TOO_HIGH:
   {
     lcd.print("AMPERAGE HIGH");
     break;
   }
-  case err_amperage_low:
+  case ERROR_AMPERAGE_TOO_LOW:
   {
     lcd.print("AMPERAGE LOW");
     break;
   }
-  case err_voltage_low:
+  case ERROR_VOLTAGE_TOO_LOW:
   {
     lcd.print("VOLTAGE LOW");
     break;
   }
-  case err_voltage_high:
+  case ERROR_VOLTAGE_TOO_HIGH:
   {
     lcd.print("VOLTAGE HIGH");
     break;
   }
   }
 }
-
 // The home page visual
-
-void menuOutput()
+void f_menu_output()
 {
-
   // ONLY FOR TEST
   // The test used for check keyboard.
-
-  /* if(getButtonState(STOP_BUTTON)){
+  /* if(f_get_button_state(STOP_BUTTON)){
      lcd.setCursor(0,0);
      lcd.print("stop");
-   }else if(getButtonState(PLUS_BUTTON)){
+   }else if(f_get_button_state(PLUS_BUTTON)){
      lcd.setCursor(0,0);
      lcd.print("+/auto");
-   } else if(getButtonState(MINUS_BUTTON)){
+   } else if(f_get_button_state(MINUS_BUTTON)){
      lcd.setCursor(0,0);
      lcd.print("-/man");
-   }else if(getButtonState(EXIT_BUTTON)){
+   }else if(f_get_button_state(EXIT_BUTTON)){
      lcd.setCursor(0,0);
      lcd.print("EXT");
-   }else if(getButtonState(SET_BUTTON)){
+   }else if(f_get_button_state(SET_BUTTON)){
      lcd.setCursor(0,0);
      lcd.print("set");
    }*/
-
   // ONLY FOR TEST
-
   // Checking current parameters, comparizing with previous. If found diffent, clears screen.
-  if (voltageINTERIOR != voltageINTERIORprev)
+  if (g_voltage_current_value != g_voltage_previous_value)
   {
-    isNeededUpdate = true;
+    is_update_needed = true;
   }
-  else if (amperageINTERIOR != amperageINTERIORprev)
+  else if (g_amperage_current_value != g_amperage_previous_value)
   {
-    isNeededUpdate = true;
+    is_update_needed = true;
   }
-  else if (wattageINTERIOR != wattageINTERIORprev)
+  else if (g_wattage_current_value != g_wattage_previous_value)
   {
-    isNeededUpdate = true;
+    is_update_needed = true;
   }
-  updateIfNeeded();
-
+  f_update_if_needed();
   // Printing information to screen. It is a home page of device, used most time.
-
   lcd.setCursor(0, 0);
   lcd.print("U:");
-  lcd.print(voltageINTERIOR);
+  lcd.print(g_voltage_current_value);
   lcd.print("V");
   lcd.setCursor(8, 0);
   lcd.print("I:");
-  lcd.print(amperageINTERIOR, 2);
+  lcd.print(g_amperage_current_value, 2);
   lcd.print("A");
   lcd.setCursor(0, 1);
   lcd.print("P:");
-  lcd.print(wattageINTERIOR, 2);
+  lcd.print(g_wattage_current_value, 2);
   lcd.print("kW");
   lcd.setCursor(10, 1);
-
   // Printing custom symbols to show the turning on and shutting down locks.
-
-  if (isLockedForTurningOn == true)
+  if (g_is_locked_for_turning_on == true)
   {
     lcd.print(char(1));
   }
-  else if (isLockedForShuttingDown == true)
+  else if (g_is_locked_for_shutting_down == true)
   {
     lcd.print(char(2));
   }
@@ -474,15 +400,13 @@ void menuOutput()
   {
     lcd.print(" ");
   }
-
   // Printing current work mode on screen.
-
   lcd.setCursor(12, 1);
-  switch (menuWorkMode)
+  switch (g_menu_and_work_mode)
   {
-  case STOPMODE:
+  case STOP_MODE:
   {
-    if (isAUTOactive == false)
+    if (g_is_auto_mode_active == false)
     {
       lcd.print("STOP");
     }
@@ -492,248 +416,229 @@ void menuOutput()
     }
     break;
   }
-  case AUTOMODE:
+  case AUTO_MODE:
   {
     lcd.print("AUTO");
     break;
   }
-  case MANUALMODE:
+  case MANUAL_MODE:
   {
     lcd.print("MAN.");
     break;
   }
   }
-
   // Saving current parameters for next comparison.
-  voltageINTERIORprev = voltageINTERIOR;
-  amperageINTERIORprev = amperageINTERIOR;
-  wattageINTERIORprev = wattageINTERIOR;
+  g_voltage_previous_value = g_voltage_current_value;
+  g_amperage_previous_value = g_amperage_current_value;
+  g_wattage_previous_value = g_wattage_current_value;
 }
-
 // Variable to save mode which will be saved to and loaded from EEPROM, and preventors for correct buttons work.
-
-bool afterlockingmode;
-bool istouchedSET_BUTTONPreventor = false;
-bool istouchedEXIT_BUTTONPreventor = false;
-
+bool g_mode_after_locking;
+bool g_is_touched_set_button_preventor = false;
+bool g_is_touched_exit_button_preventor = false;
 // Function for settings menu, first level - user can choose which setting will be changed.
-
-void settingsMapFunc(const String &print1, const String &print2, unsigned short int up, unsigned short int down, unsigned short int CCSID, unsigned short int setChoise, unsigned short int extdestiantionfromlayer2, unsigned short int setlayer2)
+void f_settings_map_function(const String &fv_print_1, const String &fv_print_2, unsigned short int fv_up, unsigned short int fv_down, unsigned short int fv_chosen_concrete_setting_ID, unsigned short int fv_set_choise, unsigned short int fv_exit_destination_from_layer_2, unsigned short int fv_set_layer_2)
 {
-
   // Printing current setting in list
-
-  updateIfNeeded();
+  f_update_if_needed();
   lcd.setCursor(0, 0);
-  lcd.print(print1);
+  lcd.print(fv_print_1);
   lcd.setCursor(0, 1);
-  lcd.print(print2);
-
+  lcd.print(fv_print_2);
   // Ensures that user unpressed buttons before next moves.
-
-  if (getButtonState(SET_BUTTON) == 1)
+  if (f_get_button_state(SET_BUTTON) == 1)
   {
-    istouchedSET_BUTTONPreventor = false;
+    g_is_touched_set_button_preventor = false;
   }
-  if (getButtonState(EXIT_BUTTON) == 1)
+  if (f_get_button_state(EXIT_BUTTON) == 1)
   {
-    istouchedEXIT_BUTTONPreventor = false;
+    g_is_touched_exit_button_preventor = false;
   }
   // delay(250);
-
   // Menu navigation, to next and previous setting to choose.
-
-  if (getButtonState(PLUS_BUTTON) == 0)
+  if (f_get_button_state(PLUS_BUTTON) == 0)
   {
-    isNeededUpdate = true;
-    settingmap = up;
+    is_update_needed = true;
+    g_setting_map_current_position = fv_up;
     // delay(250);
   }
-  else if (getButtonState(MINUS_BUTTON) == 0)
+  else if (f_get_button_state(MINUS_BUTTON) == 0)
   {
-    isNeededUpdate = true;
-    settingmap = down;
+    is_update_needed = true;
+    g_setting_map_current_position = fv_down;
     // delay(250);
-
     // Menu navigation to exit from setting to main screen.
   }
-  else if (getButtonState(EXIT_BUTTON) == 0 && istouchedEXIT_BUTTONPreventor == false)
+  else if (f_get_button_state(EXIT_BUTTON) == 0 && g_is_touched_exit_button_preventor == false)
   {
-    istouchedEXIT_BUTTONPreventor = true;
-    if (extdestiantionfromlayer2 == 0)
+    g_is_touched_exit_button_preventor = true;
+    if (fv_exit_destination_from_layer_2 == 0)
     {
-      isNeededUpdate = true;
-      settingsMenuExit();
+      is_update_needed = true;
+      f_exit_from_settings_menu();
       // delay(250);
-
       // Also, for simulation of second layer.
     }
-    else if (extdestiantionfromlayer2 != 0)
+    else if (fv_exit_destination_from_layer_2 != 0)
     {
-      isNeededUpdate = true;
-      settingmap = extdestiantionfromlayer2;
+      is_update_needed = true;
+      g_setting_map_current_position = fv_exit_destination_from_layer_2;
       // delay(250);
     }
     // delay(250);
-
     // Menu navigation to choose concrete setting to change.
   }
-  else if (getButtonState(SET_BUTTON) == 0 && istouchedSET_BUTTONPreventor == false)
+  else if (f_get_button_state(SET_BUTTON) == 0 && g_is_touched_set_button_preventor == false)
   {
-    istouchedSET_BUTTONPreventor = true;
-    istouchedEXIT_BUTTONPreventor = false;
-
+    g_is_touched_set_button_preventor = true;
+    g_is_touched_exit_button_preventor = false;
     // If 0, do nothing. Used in case of "SETTINGS" welcome page.
-
-    if (setChoise == 0)
+    if (fv_set_choise == 0)
     {
-      isNeededUpdate = true;
-
+      is_update_needed = true;
       // If 1, user choised concrete setting.
     }
-    else if (setChoise == 1)
+    else if (fv_set_choise == 1)
     {
-      istouchedSET_BUTTONPreventor = true;
-      choosedConcreteSettingID = CCSID;
-      isNeededUpdate = true;
-      isConcreteSettingChoosed = true;
-
+      g_is_touched_set_button_preventor = true;
+      g_chosen_concrete_setting_ID = fv_chosen_concrete_setting_ID;
+      is_update_needed = true;
+      g_is_concrete_setting_chosen = true;
       // In this case, used uneffective method, but more safe than using unspecified pointers.
       // Saving user choice.
-
-      switch (CCSID)
+      switch (fv_chosen_concrete_setting_ID)
       {
       case 0:
       {
-        floatTEMPORARYSetting = amperageMAX;
+        g_temporary_setting_float = g_amperage_maximum;
         break;
       }
       case 1:
       {
-        floatTEMPORARYSetting = amperageMIN;
+        g_temporary_setting_float = g_amperage_minimum;
         break;
       }
       case 2:
       {
-        intTEMPORARYSetting = voltageMAX;
+        g_temporary_setting_int = g_voltage_maximum;
         break;
       }
       case 3:
       {
-        intTEMPORARYSetting = voltageMIN;
+        g_temporary_setting_int = g_voltage_minimum;
         break;
       }
       case 4:
       {
-        floatTEMPORARYSetting = wattageMultiplier;
+        g_temporary_setting_float = g_wattage_multiplier;
         break;
       }
       }
-      isNeededUpdate = true;
-
+      is_update_needed = true;
       // If 2, used simulation of second layer.
     }
-    else if (setChoise == 2)
+    else if (fv_set_choise == 2)
     {
-      isNeededUpdate = true;
-      settingmap = setlayer2;
+      is_update_needed = true;
+      g_setting_map_current_position = fv_set_layer_2;
       // delay(500);
-
       // Case 3 used only for setting device to default, and first usage.
     }
-    else if (setChoise == 3)
+    else if (fv_set_choise == 3)
     {
-      setDefaultSettingsToEEPROM();
-      settingmap = 1;
+      f_set_to_default_settings_to_EEPROM();
+      g_setting_map_current_position = 1;
     }
     // delay(500);
   }
 }
-
-// Function for concrete setting change menu, of parameter that is saved as integer.
-
+// Function for checking if type is integer or not.
+// In any case it returns false.
 template <typename T>
-bool isInteger(T) {
+bool f_is_integer(T)
+{
   return false;
 }
-
-// Specialization for integers
+// But by respecifying the template, it returns true when type is integer.
 template <>
-bool isInteger(int) {
+bool f_is_integer(int)
+{
   return true;
 }
-
+// Function for concrete setting change menu, of parameter that is saved as integer.
+// using template to create ablitity to work with both int and float types in same function.
 template <typename T>
-void concreteSettingsMapFunc(T changescale, const String &printUpperRow, const String &measurementUnits, T upperBound, T lowerBound, int EEPROMADRESS)
+void f_concrete_settings_map_function(T fv_change_scale, const String &fv_print_upper_row, const String &fv_measurement_units, T fv_upper_bound, T fv_lower_bound, int fv_EEPROM_adress)
 {
-  T TEMPORARYSetting;
-  updateIfNeeded();
+  T l_temporary_setting;
+  f_update_if_needed();
   lcd.setCursor(0, 0);
-  lcd.print(printUpperRow);
+  lcd.print(fv_print_upper_row);
   lcd.setCursor(0, 1);
- 
-  if(isInteger(TEMPORARYSetting)){
-      TEMPORARYSetting= intTEMPORARYSetting;
-  } else TEMPORARYSetting = floatTEMPORARYSetting;
-  lcd.print(TEMPORARYSetting);
-  lcd.print(measurementUnits);
+  if (f_is_integer(l_temporary_setting))
+  {
+    l_temporary_setting = g_temporary_setting_int;
+  }
+  else
+    l_temporary_setting = g_temporary_setting_float;
+  lcd.print(l_temporary_setting);
+  lcd.print(fv_measurement_units);
   // delay(1000);
-  if (getButtonState(SET_BUTTON) == 1)
+  if (f_get_button_state(SET_BUTTON) == 1)
   {
-    istouchedSET_BUTTONPreventor = false;
+    g_is_touched_set_button_preventor = false;
   }
-  if (getButtonState(EXIT_BUTTON) == 1)
+  if (f_get_button_state(EXIT_BUTTON) == 1)
   {
-    istouchedEXIT_BUTTONPreventor = false;
+    g_is_touched_exit_button_preventor = false;
   }
-
-  if (getButtonState(PLUS_BUTTON) == 0)
+  if (f_get_button_state(PLUS_BUTTON) == 0)
   {
-    if (TEMPORARYSetting < upperBound)
+    if (l_temporary_setting < fv_upper_bound)
     {
-      TEMPORARYSetting += changescale;
+      l_temporary_setting += fv_change_scale;
     }
     else
     {
-      TEMPORARYSetting = upperBound;
+      l_temporary_setting = fv_upper_bound;
       lcd.setCursor(15, 1);
       lcd.print("!");
     }
-    isNeededUpdate = true;
+    is_update_needed = true;
     // delay(250);
   }
-  else if (getButtonState(MINUS_BUTTON) == 0)
+  else if (f_get_button_state(MINUS_BUTTON) == 0)
   {
-    if (TEMPORARYSetting > lowerBound)
+    if (l_temporary_setting > fv_lower_bound)
     {
-      TEMPORARYSetting -= changescale;
+      l_temporary_setting -= fv_change_scale;
     }
     else
     {
-      TEMPORARYSetting = lowerBound;
+      l_temporary_setting = fv_lower_bound;
       lcd.setCursor(15, 1);
       lcd.print("!");
     }
-    isNeededUpdate = true;
+    is_update_needed = true;
     // delay(250);
   }
-  else if (getButtonState(EXIT_BUTTON) == 0 && istouchedEXIT_BUTTONPreventor == false)
+  else if (f_get_button_state(EXIT_BUTTON) == 0 && g_is_touched_exit_button_preventor == false)
   {
-    istouchedEXIT_BUTTONPreventor = true;
-    isConcreteSettingChoosed = false;
-    isNeededUpdate = true;
+    g_is_touched_exit_button_preventor = true;
+    g_is_concrete_setting_chosen = false;
+    is_update_needed = true;
     // delay(250);
   }
-  else if (getButtonState(SET_BUTTON) == 0 && istouchedSET_BUTTONPreventor == false)
+  else if (f_get_button_state(SET_BUTTON) == 0 && g_is_touched_set_button_preventor == false)
   {
     // delay(4000);
-    istouchedSET_BUTTONPreventor = true;
-    istouchedEXIT_BUTTONPreventor = false;
-    isNeededUpdate = true;
-    updateIfNeeded();
+    g_is_touched_set_button_preventor = true;
+    g_is_touched_exit_button_preventor = false;
+    is_update_needed = true;
+    f_update_if_needed();
     lcd.setCursor(0, 0);
     lcd.print("SAVING");
-    EEPROM.put(EEPROMADRESS, TEMPORARYSetting);
+    EEPROM.put(fv_EEPROM_adress, l_temporary_setting);
     delay(250);
     lcd.print(" .");
     delay(250);
@@ -741,174 +646,145 @@ void concreteSettingsMapFunc(T changescale, const String &printUpperRow, const S
     delay(250);
     lcd.print(" .");
     delay(250);
-    isNeededUpdate = true;
-    updateIfNeeded();
+    is_update_needed = true;
+    f_update_if_needed();
     lcd.setCursor(0, 0);
     lcd.print("DONE");
     delay(3000);
-    isNeededUpdate = true;
+    is_update_needed = true;
   }
 }
-
 // Preventor that will ensure the user seen the error and it's reason.
-
-bool isButtonTouchedAfterErrorDisable = false;
-void errorStopCatcher()
+bool g_is_button_touched_after_error_disabling = false;
+void f_error_stop_catcher()
 {
-
   // The preventor will cannot be disabling during little time.
-
-  if (millis() - errorOutputDisableTimer >= savedMsToDisable)
+  if (millis() - g_error_output_disable_timer >= g_saved_disable_delay)
   {
-    if (isButtonTouchedAfterErrorDisable == false)
+    if (g_is_button_touched_after_error_disabling == false)
     {
-      if (getButtonState(ANYBUTTON) == 0)
+      if (f_get_button_state(ANY_BUTTON ) == 0)
       {
-        isButtonTouchedAfterErrorDisable = true;
+        g_is_button_touched_after_error_disabling = true;
       }
-
       // Also, ensuring preventor will be closed after.
     }
     else
     {
-      isErrorActive = false;
-      isNeededUpdate = true;
+      g_is_error_active = false;
+      is_update_needed = true;
     }
   }
 }
-
 // Timer, and preventors. Needed to manage settings menu.
-uint32_t settingsMenuTimer;
-bool isSettingsMenuTimerSet = false;
-bool isSettingsMenuWelcomePageActive = false;
-unsigned short int isSetUntouched = 0;
-
+uint32_t g_settings_menu_opening_timer;
+bool g_is_settings_menu_opening_timer_set = false;
+bool g_is_settings_menu_welcome_page_active = false;
+unsigned short int g_is_set_button_unpressed = 0;
 // Variable to turn on device after starting up, if needed.
-
-bool neededToTurnOn;
-
+bool g_is_needed_to_turn_on;
 // Setup is called once at start of devices work.
 void setup()
 {
-
   // Starting up the LCD, and UART for PZEM-004t
-
   lcd.begin(16, 2);
   Serial.begin(9600);
-
   // Turning on device if needed
-  if (checkForCurrentSetupMODE() == true)
+  if (f_check_current_mode_for_setup() == true)
   {
-    afterlockingmode = true;
-    neededToTurnOn = true;
-    lockShuttingDown(5000);
-    isAUTOactive = true;
+    g_mode_after_locking = true;
+    g_is_needed_to_turn_on = true;
+    f_lock_shutting_down(5000);
+    g_is_auto_mode_active = true;
   }
   else
   {
-    afterlockingmode = false;
-    neededToTurnOn = true;
-    isAUTOactive = false;
+    g_mode_after_locking = false;
+    g_is_needed_to_turn_on = true;
+    g_is_auto_mode_active = false;
   }
-
   // Starting up pins, LCD's cursor, settings of device.
-
-  pinMode(RELAYPIN, OUTPUT);        // RELAY
-  pinMode(KEYBOARDPIN, INPUT);      // KEYBOARD
-  pinMode(SUPPLYCONTROLPIN, INPUT); // SUPPLY CONTROL
+  pinMode(RELAY_PIN, OUTPUT);         // RELAY
+  pinMode(KEYBOARD_PIN, INPUT);        // KEYBOARD
+  pinMode(SUPPLY_CONTROL_PIN, INPUT); // SUPPLY CONTROL
   lcd.setCursor(0, 0);
-  getSettingsFromEEPROM();
-
+  f_get_settings_from_EEPROM();
   // Loading custom symbols to LCD, end of starting up.
-  lcd.createChar(1, lockerSymbol);
-  lcd.createChar(2, turningOnModeSymbol);
-  lockTurningOn(5000);
-  isSettingsMenuTimerSet = false;
+  lcd.createChar(1, g_locker_symbol);
+  lcd.createChar(2, g_turning_on_mode_symbol);
+  f_lock_turning_on(5000);
+  g_is_settings_menu_opening_timer_set = false;
 }
-
 // Controller to lock shutting down for start of work.
-
-bool turnOnOnlyOnce = true;
-
+bool g_turning_on_only_once_preventor = true;
 // This function is repeating during all devices work time.
-
 void loop()
 {
-
   // Read and check info from PZEM-004t
-
-  voltageINTERIOR = pzem.voltage();
-  amperageINTERIOR = pzem.current();
-  wattageINTERIOR = pzem.power() / 1000;
-  if (isnan(voltageINTERIOR))
+  g_voltage_current_value = pzem.voltage();
+  g_amperage_current_value = pzem.current();
+  g_wattage_current_value = pzem.power() / 1000;
+  if (isnan(g_voltage_current_value))
   {
-    voltageINTERIOR = 0;
+    g_voltage_current_value = 0;
   }
-  if (isnan(amperageINTERIOR))
+  if (isnan(g_amperage_current_value))
   {
-    amperageINTERIOR = 0;
+    g_amperage_current_value = 0;
   }
-  if (isnan(wattageINTERIOR))
+  if (isnan(g_wattage_current_value))
   {
-    wattageINTERIOR = 0;
+    g_wattage_current_value = 0;
   }
-
   // Main menu. If stopped or auto turned on, writes it to EEPROM.
-
-  if (menuWorkMode == STOPMODE)
+  if (g_menu_and_work_mode== STOP_MODE)
   {
-    if (checkForCurrentSetupMODE() == true && isAUTOactive == false)
+    if (f_check_current_mode_for_setup() == true && g_is_auto_mode_active == false)
     {
-      writeCurrentToEEPROM(false);
+      f_write_work_mode_to_EEPROM(false);
     }
   }
-  else if (menuWorkMode == AUTOMODE || isAUTOactive == true)
+  else if (g_menu_and_work_mode== AUTO_MODE || g_is_auto_mode_active == true)
   {
-    if (checkForCurrentSetupMODE() == false)
+    if (f_check_current_mode_for_setup() == false)
     {
-      writeCurrentToEEPROM(true);
+      f_write_work_mode_to_EEPROM(true);
     }
   }
-
   // Specifical requirement from customer:
   /* There must be supply control pin
   When the auto mode is turned on, it must control the power supply.
   When applying power to pin, it must apply power throw relay,
   if no - relay must block power.*/
   /*How it works: almost all logic is checking one of two variables to check activity of auto mode:
-  The menuWorkMode and isAUTOactive. First variable is control of power supply, monitoring and else
+  The g_menu_and_work_modeand g_is_auto_mode_active. First variable is control of power supply, monitoring and else
   general functions, second - specifical functions like saving workmode, visual, etc.
-
-  This module controlling the menuWorkMode, but saving AUTO as active.*/
-
-  updateIfNeeded();
-  if (isAUTOactive == true)
+  This module controlling the g_menu_and_work_mode, but saving AUTO as active.*/
+  f_update_if_needed();
+  if (g_is_auto_mode_active == true)
   {
-    if (digitalRead(SUPPLYCONTROLPIN) == supplyTurningOn)
+    if (digitalRead(SUPPLY_CONTROL_PIN) == supply_turning_on)
     {
-      menuWorkMode = AUTOMODE;
-      isLockedForTurningOn = false;
-      if (turnOnOnlyOnce == true)
+      g_menu_and_work_mode= AUTO_MODE;
+      g_is_locked_for_turning_on = false;
+      if (g_turning_on_only_once_preventor == true)
       {
-        lockShuttingDown(5000);
+        f_lock_shutting_down(5000);
       }
-      turnOnOnlyOnce = false;
+      g_turning_on_only_once_preventor = false;
     }
-    else if (digitalRead(SUPPLYCONTROLPIN) != supplyTurningOn)
+    else if (digitalRead(SUPPLY_CONTROL_PIN) != supply_turning_on)
     {
-      menuWorkMode = STOPMODE;
-      isLockedForShuttingDown = false;
-      isLockedForTurningOn = false;
-      turnOnOnlyOnce = true;
+      g_menu_and_work_mode= STOP_MODE;
+      g_is_locked_for_shutting_down = false;
+      g_is_locked_for_turning_on = false;
+      g_turning_on_only_once_preventor = true;
     }
   }
-
   // This prevents next code during errors.
-
-  if (isErrorActive == true)
+  if (g_is_error_active == true)
   {
-    errorStopCatcher();
-
+    f_error_stop_catcher();
     // If no errors are active at the moment, the next code will control work modes.
     /*How it works:
     On pressing buttons related to work modes, it changes all needed variables to switch it.
@@ -916,64 +792,57 @@ void loop()
     Each part of module marked with short description.
     */
   }
-  else if (isSettingsMenuActive == false && isErrorActive == false && isSettingsMenuWelcomePageActive == false)
+  else if (g_is_settings_menu_active == false && g_is_error_active == false && g_is_settings_menu_welcome_page_active == false)
   {
-
     // Switching work mode to stop. Highest priority.
-
-    if (getButtonState(STOP_BUTTON) == 0)
+    if (f_get_button_state(STOP_BUTTON) == 0)
     {
-      menuWorkMode = STOPMODE;
-      isLockedForShuttingDown = false;
-      isAUTOactive = false;
-      turnOnOnlyOnce = true;
+      g_menu_and_work_mode= STOP_MODE;
+      g_is_locked_for_shutting_down = false;
+      g_is_auto_mode_active = false;
+      g_turning_on_only_once_preventor = true;
     }
     else
     {
-      if (isLockedForTurningOn == false)
+      if (g_is_locked_for_turning_on == false)
       {
-
         // Turning on in manual mode.
-
-        if (getButtonState(MANUAL_BUTTON) == 0)
+        if (f_get_button_state(MANUAL_BUTTON) == 0)
         {
-          menuWorkMode = MANUALMODE;
-          isAUTOactive = false;
-          if (turnOnOnlyOnce == true)
+          g_menu_and_work_mode= MANUAL_MODE;
+          g_is_auto_mode_active = false;
+          if (g_turning_on_only_once_preventor == true)
           {
-            lockShuttingDown(5000);
+            f_lock_shutting_down(5000);
           }
-          turnOnOnlyOnce = false;
-
+          g_turning_on_only_once_preventor = false;
           // Turning on in auto mode.
         }
-        else if (getButtonState(AUTO_BUTTON) == 0)
+        else if (f_get_button_state(AUTO_BUTTON) == 0)
         {
-          if (digitalRead(SUPPLYCONTROLPIN) == supplyTurningOn)
+          if (digitalRead(SUPPLY_CONTROL_PIN) == supply_turning_on)
           {
-            menuWorkMode = AUTOMODE;
+            g_menu_and_work_mode= AUTO_MODE;
           }
-          isAUTOactive = true;
-          if (turnOnOnlyOnce == true)
+          g_is_auto_mode_active = true;
+          if (g_turning_on_only_once_preventor == true)
           {
-            lockShuttingDown(5000);
+            f_lock_shutting_down(5000);
           }
-          turnOnOnlyOnce = false;
+          g_turning_on_only_once_preventor = false;
         }
       }
     }
-
     // turning manual mode off. Almost same priority with stopping.
-    if (menuWorkMode == MANUALMODE && getButtonState(MANUAL_BUTTON) == 1)
+    if (g_menu_and_work_mode== MANUAL_MODE && f_get_button_state(MANUAL_BUTTON) == 1)
     {
-      menuWorkMode = STOPMODE;
-      isAUTOactive = false;
-      isLockedForShuttingDown = false;
-      turnOnOnlyOnce = true;
+      g_menu_and_work_mode= STOP_MODE;
+      g_is_auto_mode_active = false;
+      g_is_locked_for_shutting_down = false;
+      g_turning_on_only_once_preventor = true;
     }
-    menuOutput();
+    f_menu_output();
   }
-
   // Module that catches errors.
   /*How it works:
   If the current work mode is manual, or auto with supply control turned on(line 816)
@@ -981,80 +850,76 @@ void loop()
   critical ones. If every parameter is within limits, nothing done, in other case error
   happens. It sets work mode to stop, lock turning power supply on and outputs error on screen.
   */
-
-  if (menuWorkMode != STOPMODE)
+  if (g_menu_and_work_mode!= STOP_MODE)
   {
-    if (isLockedForShuttingDown == false)
+    if (g_is_locked_for_shutting_down == false)
     {
-      if (amperageINTERIOR >= amperageMAX)
+      if (g_amperage_current_value >= g_amperage_maximum)
       {
-        menuWorkMode = STOPMODE;
-        isAUTOactive = false;
-        isLockedForShuttingDown = false;
-        turnOnOnlyOnce = true;
-        lockTurningOn(10000);
-        isNeededUpdate = true;
-        errorOnlyOutput(err_amperage_high, 5000);
+        g_menu_and_work_mode= STOP_MODE;
+        g_is_auto_mode_active = false;
+        g_is_locked_for_shutting_down = false;
+        g_turning_on_only_once_preventor = true;
+        f_lock_turning_on(10000);
+        is_update_needed = true;
+        f_error_only_output(ERROR_AMPERAGE_TOO_HIGH, 5000);
       }
-      else if (amperageINTERIOR <= amperageMIN)
+      else if (g_amperage_current_value <= g_amperage_minimum)
       {
-        menuWorkMode = STOPMODE;
-        isAUTOactive = false;
-        isLockedForShuttingDown = false;
-        turnOnOnlyOnce = true;
-        lockTurningOn(10000);
-        isNeededUpdate = true;
-        errorOnlyOutput(err_amperage_low, 5000);
+        g_menu_and_work_mode= STOP_MODE;
+        g_is_auto_mode_active = false;
+        g_is_locked_for_shutting_down = false;
+        g_turning_on_only_once_preventor = true;
+        f_lock_turning_on(10000);
+        is_update_needed = true;
+        f_error_only_output(ERROR_AMPERAGE_TOO_LOW, 5000);
       }
-      else if (voltageINTERIOR <= voltageMIN)
+      else if (g_voltage_current_value <= g_voltage_minimum)
       {
-        menuWorkMode = STOPMODE;
-        isAUTOactive = false;
-        isLockedForShuttingDown = false;
-        turnOnOnlyOnce = true;
-        lockTurningOn(10000);
-        isNeededUpdate = true;
-        errorOnlyOutput(err_voltage_low, 5000);
+        g_menu_and_work_mode= STOP_MODE;
+        g_is_auto_mode_active = false;
+        g_is_locked_for_shutting_down = false;
+        g_turning_on_only_once_preventor = true;
+        f_lock_turning_on(10000);
+        is_update_needed = true;
+        f_error_only_output(ERROR_VOLTAGE_TOO_LOW, 5000);
       }
-      else if (voltageINTERIOR >= voltageMAX)
+      else if (g_voltage_current_value >= g_voltage_maximum)
       {
-        menuWorkMode = STOPMODE;
-        isAUTOactive = false;
-        isLockedForShuttingDown = false;
-        turnOnOnlyOnce = true;
-        lockTurningOn(10000);
-        isNeededUpdate = true;
-        errorOnlyOutput(err_voltage_high, 5000);
+        g_menu_and_work_mode= STOP_MODE;
+        g_is_auto_mode_active = false;
+        g_is_locked_for_shutting_down = false;
+        g_turning_on_only_once_preventor = true;
+        f_lock_turning_on(10000);
+        is_update_needed = true;
+        f_error_only_output(ERROR_VOLTAGE_TOO_HIGH, 5000);
       }
     }
   }
-
   // This module controls relay. HIGH - apply power in circuit, LOW - block it.
-
-  switch (menuWorkMode)
+  switch (g_menu_and_work_mode)
   {
   case 1:
   { // STOP
-    digitalWrite(RELAYPIN, LOW);
+    digitalWrite(RELAY_PIN, LOW);
     break;
   }
   case 2:
   { // AUTO
-    digitalWrite(RELAYPIN, HIGH);
+    digitalWrite(RELAY_PIN, HIGH);
     break;
   }
   case 3:
   { // MANUAL
-    digitalWrite(RELAYPIN, HIGH);
+    digitalWrite(RELAY_PIN, HIGH);
     break;
   }
   default:
   { // Preventing accidental power supplying
-    digitalWrite(RELAYPIN, LOW);
+    digitalWrite(RELAY_PIN, LOW);
     break;
   }
   }
-
   // This module controls entering settings menu.
   /*How it works:
   In stopped work mode, if user press SET button for 3 seconds, settings menu opens.
@@ -1064,262 +929,233 @@ void loop()
   each time.
   If not stoppped, user will be warned and settings menu won't be opened.
   If timer not set, it will be set on pressing SET button.
-
   */
-
-  if (getButtonState(SET_BUTTON) == 0)
+  if (f_get_button_state(SET_BUTTON) == 0)
   {
-    if (!isSettingsMenuActive)
+    if (!g_is_settings_menu_active)
     {
-      if (isSettingsMenuWelcomePageActive == false)
+      if (g_is_settings_menu_welcome_page_active == false)
       {
-        if (menuWorkMode == STOPMODE && isAUTOactive == false)
+        if (g_menu_and_work_mode== STOP_MODE && g_is_auto_mode_active == false)
         {
-          isSetUntouched = 0;
-          if (isSettingsMenuTimerSet)
+          g_is_set_button_unpressed = 0;
+          if (g_is_settings_menu_opening_timer_set)
           {
-            if ((millis() - settingsMenuTimer) >= 3000)
+            if ((millis() - g_settings_menu_opening_timer) >= 3000)
             {
-              isSettingsMenuWelcomePageActive = true;
-              isNeededUpdate = true;
-              istouchedSET_BUTTONPreventor = true;
+              g_is_settings_menu_welcome_page_active = true;
+              is_update_needed = true;
+              g_is_touched_set_button_preventor = true;
             }
           }
-          else if (!isSettingsMenuTimerSet)
+          else if (!g_is_settings_menu_opening_timer_set)
           {
-            isSettingsMenuTimerSet = true;
-            settingsMenuTimer = millis();
+            g_is_settings_menu_opening_timer_set = true;
+            g_settings_menu_opening_timer = millis();
           }
         }
-        else if (menuWorkMode != STOPMODE || isAUTOactive == true)
+        else if (g_menu_and_work_mode!= STOP_MODE || g_is_auto_mode_active == true)
         {
-          errorOnlyOutput(err_not_stopped, 500);
+          f_error_only_output(ERROR_NOT_STOPPED, 500);
         }
       }
     }
-    if (getButtonState(SET_BUTTON) == 1)
+    if (f_get_button_state(SET_BUTTON) == 1)
     {
-      if (isSetUntouched >= 10)
+      if (g_is_set_button_unpressed >= 10)
       {
-        isSettingsMenuTimerSet = false;
+        g_is_settings_menu_opening_timer_set = false;
       }
       else
       {
-        isSetUntouched += 1;
+        g_is_set_button_unpressed += 1;
       }
     }
   }
-
   // The settings welcome page. Ensures user want to enter settings menu, and passes if yes.
-
-  if (isSettingsMenuWelcomePageActive)
+  if (g_is_settings_menu_welcome_page_active)
   {
-    updateIfNeeded();
+    f_update_if_needed();
     lcd.setCursor(0, 0);
     lcd.print("OPEN SETTINGS?");
     lcd.setCursor(0, 1);
     lcd.print("SET-YES/EXT-NO");
-
     // Turning off preventor.
-
-    if (getButtonState(SET_BUTTON) == 1)
+    if (f_get_button_state(SET_BUTTON) == 1)
     {
-      istouchedSET_BUTTONPreventor = false;
+      g_is_touched_set_button_preventor = false;
     }
-
     // Setting all needed variables to open settings menu, if user want to open it.
-
-    if (getButtonState(SET_BUTTON) == 0 && istouchedSET_BUTTONPreventor == false)
+    if (f_get_button_state(SET_BUTTON) == 0 && g_is_touched_set_button_preventor == false)
     {
-      isSettingsMenuWelcomePageActive = false;
-      isSettingsMenuTimerSet = false;
-      isSettingsMenuActive = true;
-      settingmap = 2;
-      isNeededUpdate = true;
-      istouchedSET_BUTTONPreventor = true;
+      g_is_settings_menu_welcome_page_active = false;
+      g_is_settings_menu_opening_timer_set = false;
+      g_is_settings_menu_active = true;
+      g_setting_map_current_position = 2;
+      is_update_needed = true;
+      g_is_touched_set_button_preventor = true;
     }
-
     // Other preventor turning off.
-
-    if (getButtonState(EXIT_BUTTON) == 1)
+    if (f_get_button_state(EXIT_BUTTON) == 1)
     {
-      istouchedEXIT_BUTTONPreventor = false;
+      g_is_touched_exit_button_preventor = false;
     }
-
     // Exiting settings menu welcome page if user wants it.
-
-    if (getButtonState(EXIT_BUTTON) == 0 && istouchedEXIT_BUTTONPreventor == false)
+    if (f_get_button_state(EXIT_BUTTON) == 0 && g_is_touched_exit_button_preventor == false)
     {
-      istouchedEXIT_BUTTONPreventor = true;
-      isNeededUpdate = true;
-      isSettingsMenuWelcomePageActive = false;
-      isSettingsMenuTimerSet = false;
+      g_is_touched_exit_button_preventor = true;
+      is_update_needed = true;
+      g_is_settings_menu_welcome_page_active = false;
+      g_is_settings_menu_opening_timer_set = false;
     }
   }
-
   // The settings menu main page. This module is the non-concrete menu opened.
   /*How it works:
   The function used, is closely related with global variables used here, and this module at all.
   Changing page, going to other layers, choosing concrete setting is realised in function, by
-  variable settingmap, that changes in function and call it with other aruments here.
+  variable g_setting_map_current_position, that changes in function and call it with other aruments here.
   */
-
-  if (!isConcreteSettingChoosed)
+  if (!g_is_concrete_setting_chosen)
   {
-    if (isSettingsMenuActive == true)
+    if (g_is_settings_menu_active == true)
     {
-      updateIfNeeded();
-      switch (settingmap)
+      f_update_if_needed();
+      switch (g_setting_map_current_position)
       {
       case 1:
       {
-        settingsMapFunc("SETTINGS", " ", 6, 2, 999, 0, 0, 0);
+        f_settings_map_function("SETTINGS", " ", 6, 2, 999, 0, 0, 0);
         // delay(100);
         break;
       }
       case 2:
       {
-        settingsMapFunc("    Amperage", "    Maximum", 5, 3, 0, 1, 0, 0);
+        f_settings_map_function("    Amperage", "    Maximum", 5, 3, 0, 1, 0, 0);
         // delay(100);
         break;
       }
       case 3:
       {
-        settingsMapFunc("    Amperage", "    Minimum", 2, 4, 1, 1, 0, 0);
+        f_settings_map_function("    Amperage", "    Minimum", 2, 4, 1, 1, 0, 0);
         // delay(100);
         break;
       }
       case 4:
       {
-        settingsMapFunc("    Voltage", "    Maximum", 3, 5, 2, 1, 0, 0);
+        f_settings_map_function("    Voltage", "    Maximum", 3, 5, 2, 1, 0, 0);
         // delay(100);
         break;
       }
       case 5:
       {
-        settingsMapFunc("    Voltage", "    Minimum", 4, 6, 3, 1, 0, 0);
+        f_settings_map_function("    Voltage", "    Minimum", 4, 6, 3, 1, 0, 0);
         // delay(100);
         break;
       }
       case 6:
       {
-        settingsMapFunc("Set to default", " ", 5, 2, 999, 2, 0, 7);
+        f_settings_map_function("Set to default", " ", 5, 2, 999, 2, 0, 7);
         // delay(100);
         break;
       }
       case 7:
       {
-        settingsMapFunc("Are you sure?", "SET-YES/EXT-NO", 7, 7, 999, 3, 6, 0);
+        f_settings_map_function("Are you sure?", "SET-YES/EXT-NO", 7, 7, 999, 3, 6, 0);
         // delay(100);
         break;
       }
       }
     }
-
     // The concrete setting menu. Just controls, which one and with which arguments will be called.
   }
-  else if (isConcreteSettingChoosed)
+  else if (g_is_concrete_setting_chosen)
   {
-    updateIfNeeded();
-    switch (choosedConcreteSettingID)
+    f_update_if_needed();
+    switch (g_chosen_concrete_setting_ID)
     {
     case 0:
     {
-      concreteSettingsMapFunc(0.05, "I max", " A", 99.9, 0.0, 0);
+      f_concrete_settings_map_function(0.05, "I max", " A", 99.9, 0.0, 0);
       break;
     }
     case 1:
     {
-      concreteSettingsMapFunc(0.05, "I min", " A", 99.9, 0.0, 5);
+      f_concrete_settings_map_function(0.05, "I min", " A", 99.9, 0.0, 5);
       break;
     }
     case 2:
     {
-      concreteSettingsMapFunc(1, "U max", " V", 259, 0, 10);
+      f_concrete_settings_map_function(1, "U max", " V", 259, 0, 10);
       break;
     }
     case 3:
     {
-      concreteSettingsMapFunc(1, "U min", " V", 259, 0, 15);
+      f_concrete_settings_map_function(1, "U min", " V", 259, 0, 15);
       break;
     }
     }
   }
-
   // Lock's timers.
   /*How it works:
     Shutting-down lock just disables after time is gone.
     The turning on lock makes same, but also turning menu
     in other mode if device restarted and this needed.
   */
-  if (isLockedForShuttingDown == true)
+  if (g_is_locked_for_shutting_down == true)
   {
-    if (millis() - shuttingDownLockTimer >= lockTimerShuttingDownINT)
+    if (millis() - g_shutting_down_lock_timer >= g_lock_shutting_down_delay)
     {
-      isLockedForShuttingDown = false;
-      isNeededUpdate = true;
+      g_is_locked_for_shutting_down = false;
+      is_update_needed = true;
     }
   }
-  if (isLockedForTurningOn == true)
+  if (g_is_locked_for_turning_on == true)
   {
-    if (millis() - turningOnLockTimer >= lockTimerTurningOnINT)
+    if (millis() - g_turning_on_lock_timer >= g_lock_turning_on_delay)
     {
-      isLockedForTurningOn = false;
-      isNeededUpdate = true;
-      if (neededToTurnOn == true)
+      g_is_locked_for_turning_on = false;
+      is_update_needed = true;
+      if (g_is_needed_to_turn_on == true)
       {
-        if (afterlockingmode == true)
+        if (g_mode_after_locking == true)
         {
-          menuWorkMode = AUTOMODE;
-          neededToTurnOn = false;
+          g_menu_and_work_mode= AUTO_MODE;
+          g_is_needed_to_turn_on = false;
         }
-        else if (afterlockingmode == false)
+        else if (g_mode_after_locking == false)
         {
-          menuWorkMode = STOPMODE;
-          neededToTurnOn = false;
+          g_menu_and_work_mode= STOP_MODE;
+          g_is_needed_to_turn_on = false;
         }
       }
     }
   }
 }
-
 /*
   Some questionable moments:
-
     1. Why so many global variables, and none local?
-
     The dynamic memory of Arduino is quickly runs away, causing troubles. And, I noticed that the main reason of it
     is unoptimized usage of local variables, new ones are creating but old ones is not clearing up as soon as needed.
     The most easy way to fix it - using global variables, and rewrite it when needed, even if local one preffered.
-
     2. Why not using pointers and references?
-
     Reason is simple - not needed. Clearing up after functions is better, and this almost not damages script.
     Also, I use Atmel Atmega 328pb against original Arduino Uno, and it causes problems. I don't found reason yet.
-
     3. Why used "Error" against other words, like "Warning"?
-
-    Word "Error" is very negative, and stimulates people more that something like "Warning" or "Trouble". 
+    Word "Error" is very negative, and stimulates people more that something like "Warning" or "Trouble".
     For example, even in compiler the "Warnings" not stop the code against "Errors".
-
     4. Why default settings are on this level?
-
     They are temporary, for testing. Also they allowed by PZEM-004t
-
-    5. Where is the scheme of this device? 
-
+    5. Where is the scheme of this device?
     The scheme is not done, because this is only basical side-version script, specified for shield.
     The testing details are:
     PZEM-004t
     Atmel Atmega328pb (Arduino Uno analog)
-    D1ROBOT LCD SHIELD 
+    D1ROBOT LCD SHIELD
     Wires
     Relay(SRD-05VDC-SL-C)  --- to pin D2
     Just contact to apply 5V on it, used to control power supply --- to pin D3
     To simulate supply control, used button connected directly between D3 and 5V, with GND through resistor.
-
     6. How to contact me to ask some questions:
-
     Phone number: +380 50 851 79 06
     E-mail: poliakov.vladislav.v@gmail.com
     Telegram: https://t.me/ParrKenna | @ParrKenna | Search by phone opened
@@ -1327,5 +1163,5 @@ void loop()
     Djinni: https://djinni.co/q/dbfdf0f6b8/
     Viber by phone +380508517906
     Github: https://github.com/VladislavPoliakov/WWSERVICEaug8a
-
 */
+
